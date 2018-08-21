@@ -1,0 +1,373 @@
+﻿AprioriImplementation.cpp : 
+Code:
+#include "AprioriImplementation.hpp"
+void display(Index index);/*for testing purposes*/
+int main(){
+   uint min_sup;
+   uint noItems,noTrans;
+   std::cout<<"Reading Data...";
+   std::cin>>min_sup>>noItems>>noTrans;
+   Index index;
+   for(int i=0;i < noItems;i++)
+      std::cin>>index[i];
+   Matrix db(noTrans,noItems);
+   db.getData();
+   std::cout<<"\nProcessing...\n";
+   display(apriori(noItems,db,min_sup),index);
+   return 0;
+}
+void display(Index index){
+   std::cout<<"Map :-";
+   for(IndexCI i=index.begin();i != index.end();++i)
+      std::cout<<std::endl<<i->first<<'\t'<<i->second;
+}
+
+
+
+AprioriImplementation.hpp :
+
+Code:
+#if !defined(IOSTREAM)
+#define IOSTREAM
+#include<iostream>
+#endif
+#if !defined(SET)
+#define SET
+#include<set>
+#endif
+#if !defined(MAP)
+#define MAP
+#include<map>
+#endif
+#if !defined(STRING)
+#define STRING
+#include<string>
+#endif
+#if !defined(TYPEDEFS)
+#define TYPEDEFS
+typedef unsigned int uint;
+typedef unsigned int DataType;
+typedef std::set<DataType> IntSet;
+typedef std::set<IntSet> SuperSet;
+typedef IntSet::const_iterator IntSetCI;
+typedef SuperSet::const_iterator SuperSetCI;
+#endif
+#if !defined(TYPEDEFS_MAPS)
+#define TYPEDEFS_MAPS
+typedef std::map<DataType,std::string> Index;
+typedef Index::const_iterator IndexCI;
+#endif
+#if !defined(SETS)
+#define SETS
+#include "sets.hpp"
+#endif
+#if !defined(DATABASE)
+#define DATABASE
+#include "database.hpp"
+#endif
+#if !defined(APRIORI)
+#define APRIORI
+#include "apriori.hpp"
+#endif
+
+
+
+apriori.cpp
+Code:
+#include "apriori.hpp"
+bool has_infrequent_subset(IntSet c,SuperSet l1){//Assuming c.size() > 1
+   SuperSet subsetsC=genSubsets(c);
+   for(SuperSetCI i=subsetsC.begin();i != subsetsC.end();++i)
+      if(!l1.count(*i))
+         return true;
+   return false;
+}
+SuperSet apriori_gen(SuperSet l1){
+   SuperSet ck;
+   if(l1.size() < 2)
+      return ck;
+   SuperSetCI rearmost=--(l1.end()),i,j,tempI;
+   for(i=l1.begin(); i != rearmost;++i){
+      tempI=i; 
+      for(j=++tempI;j != l1.end();++j){
+         if(allButLast(*i) == allButLast(*j) && last(*i) != last(*j)){
+            IntSet temp(i->begin(),i->end());
+            temp.insert(--(j->end()),j->end());/*Assuming itemset.size() >= 1*/
+            if(has_infrequent_subset(temp,l1))
+               ;//ignore;
+            else
+               ck.insert(temp);
+         }
+      }
+   }
+   return ck;
+}
+SuperSet scanDB(SuperSet cs,const Matrix &db,const uint &min_sup){
+   SuperSet l2;
+   for(SuperSetCI i=cs.begin();i != cs.end();++i)
+      if(db.count(*i) >= min_sup)
+         l2.insert(*i);
+   return l2;
+}
+SuperSet makeL1(const uint& noItems,const Matrix& db,const uint& min_sup){
+   IntSet temp;
+   SuperSet c1;
+   for(int i=0;i < noItems;i++){
+      temp.insert(i);
+      c1.insert(temp);/*By Value*/
+      temp.clear();
+   }
+   return scanDB(c1,db,min_sup);
+}
+SuperSet apriori(const uint& noItems,const Matrix& db,const uint& min_sup){
+   SuperSet l1,prev;
+   l1=makeL1(noItems,db,min_sup);
+   while(l1.size()){
+      prev=l1;
+      l1=scanDB(apriori_gen(l1),db,min_sup);
+   }
+   return prev;
+}
+
+
+apriori.hpp :
+Code:
+#if !defined(IOSTREAM)
+#define IOSTREAM
+#include<iostream>
+#endif
+#if !defined(SET)
+#define SET
+#include<set>
+#endif
+#if !defined(TYPEDEFS)
+#define TYPEDEFS
+typedef unsigned int uint;
+typedef unsigned int DataType;
+typedef std::set<DataType> IntSet;
+typedef std::set<IntSet> SuperSet;
+typedef IntSet::const_iterator IntSetCI;
+typedef SuperSet::const_iterator SuperSetCI;
+#endif
+#if !defined(DATABASE)
+#define DATABASE
+#include "database.hpp"
+#endif
+#if !defined(SETS)
+#define SETS
+#include "sets.hpp"
+#endif
+bool has_infrequent_subset(IntSet c,SuperSet l1);
+SuperSet apriori_gen(SuperSet l1);
+SuperSet scanDB(SuperSet cs,Matrix &db,const uint& min_sup);
+SuperSet makeL1(const uint& noItems,const Matrix& db,const uint& min_sup);
+SuperSet apriori(const uint& noItems,const Matrix& db,const uint& min_sup);
+
+
+
+database.cpp
+Code:
+#include "database.hpp"
+Matrix::Matrix(uint r,uint c){
+   this->r=r;this->c=c;
+   mat=new bool*[r];
+   for(int i=0;i < r;i++)
+      mat[i]=new bool[c];
+}
+Matrix::~Matrix(){
+   for(int i=0;i < r;i++)
+      delete[] mat[i];
+   delete[] mat;
+}
+void Matrix::getData(){
+   for(int i=0;i < r;i++)
+      for(int j=0;j < c;j++)
+         std::cin>>mat[i][j];
+}
+void Matrix::display(){
+   for(int i=0;i < r;i++){
+      std::cout<<std::endl;
+      for(int j=0;j< c;j++)
+         std::cout<<mat[i][j]<<' ';
+   }
+}
+bool Matrix::candidateInTransaction(const uint& row,IntSet c) const{
+   for(IntSetCI i=c.begin();i != c.end();++i)
+      if(!mat[row][*i])
+         return false;
+   return true;
+}
+uint Matrix::count(const IntSet& c) const{
+   int i,count=0;
+   for(i=0;i < r;i++)
+      if(candidateInTransaction(i,c))
+         count++;
+   return count;
+}
+
+
+database.hpp
+Code:
+#if !defined(IOSTREAM)
+#define IOSTREAM
+#include<iostream>
+#endif
+#if !defined(SET)
+#define SET
+#include<set>
+#endif
+#if !defined(TYPEDEFS)
+#define TYPEDEFS
+typedef unsigned int uint;
+typedef unsigned int DataType;
+typedef std::set<DataType> IntSet;
+typedef std::set<IntSet> SuperSet;
+typedef IntSet::const_iterator IntSetCI;
+typedef SuperSet::const_iterator SuperSetCI;
+#endif
+class Matrix{
+   bool **mat;
+   uint r,c;
+public:
+   Matrix(uint r,uint c);
+   ~Matrix();
+   void getData();
+   void display();
+   uint count(const IntSet& c) const;
+   bool candidateInTransaction(const uint& row,IntSet c) const;
+};
+
+
+
+sets.php
+Code:
+#include "sets.hpp"
+void display(IntSet s){
+   std::cout<<'{';
+   if(s.size()){
+      IntSetCI i=s.begin();
+      std::cout<<*(i++);
+      for(;i != s.end();++i)
+         std::cout<<','<<*i;
+   }
+   std::cout<<'}';
+}
+void display(SuperSet ss){
+   std::cout<<'{';
+   if(ss.size()){
+      SuperSetCI i=ss.begin();
+      display(*(i++));
+      for(;i != ss.end();++i){
+         std::cout<<',';
+         display(*i);
+      }
+   }
+   std::cout<<'}';
+}
+void display(IntSet s,Index index){
+   std::cout<<'{';
+   if(s.size()){
+      IntSetCI i=s.begin();
+      std::cout<<index[*(i++)];
+      for(;i != s.end();++i)
+         std::cout<<','<<index[*i];
+   }
+   std::cout<<'}';
+}
+void display(SuperSet ss,Index index){
+   std::cout<<'{';
+   if(ss.size()){
+      SuperSet::iterator i=ss.begin();
+      display(*(i++),index);
+      for(;i != ss.end();++i){
+         std::cout<<',';
+         display(*i,index);
+      }
+   }
+   std::cout<<'}';
+}
+SuperSet genSubsets(IntSet s){
+   SuperSet ss;
+   if(s.size() < 2)
+      return ss;
+   IntSetCI front,back;
+   IntSet temp;
+   front=s.begin();back=s.end();
+   --back;
+   temp.insert(front,back);
+   ss.insert(temp);
+   temp.clear();
+   ++front;++back;
+   temp.insert(front,back);
+   ss.insert(temp);
+   temp.clear();
+   if(s.size() == 2)
+      return ss;
+   back=++(s.begin());++front;
+   while(front != s.end()){
+      temp.insert(front,s.end());
+      temp.insert(s.begin(),back);
+      ss.insert(temp);
+      temp.clear();
+      front++;++back;
+   }
+   return ss;
+}
+IntSet allButLast(IntSet s){
+   IntSet temp;
+   if(s.size())
+      temp.insert(s.begin(),--(s.end()));
+   return temp;
+}
+IntSet last(IntSet s){
+   IntSet temp;
+   if(s.size())
+      temp.insert(--(s.end()),s.end());
+   return temp;
+}
+
+
+
+sets.hpp
+Code:
+#if !defined(IOSTREAM)
+#define IOSTREAM
+#include<iostream>
+#endif
+#if !defined(SET)
+#define SET
+#include<set>
+#endif
+#if !defined(MAP)
+#define MAP
+#include<map>
+#endif
+#if !defined(STRING)
+#define STRING
+#include<string>
+#endif
+#if !defined(TYPEDEFS)
+#define TYPEDEFS
+typedef unsigned int uint;
+typedef unsigned int DataType;
+typedef std::set<DataType> IntSet;
+typedef std::set<IntSet> SuperSet;
+typedef IntSet::const_iterator IntSetCI;
+typedef SuperSet::const_iterator SuperSetCI;
+#endif
+#if !defined(TYPEDEFS_MAPS)
+#define TYPEDEFS_MAPS
+typedef std::map<DataType,std::string> Index;
+typedef Index::const_iterator IndexCI;
+#endif
+void display(IntSet s);
+void display(SuperSet ss);
+void display(IntSet s,Index index);
+void display(SuperSet ss,Index index);
+IntSet allButLast(IntSet s);
+IntSet last(IntSet s);
+SuperSet genSubsets(IntSet s);
+
+
+
+
